@@ -1,0 +1,66 @@
+FROM alpine
+
+RUN apk update \
+        && apk upgrade \
+        && apk add --no-cache bash \
+        bash-doc \
+        bash-completion \
+        && rm -rf /var/cache/apk/*
+#
+# Dockerfile for shadowsocks-libev
+#
+
+RUN set -ex \
+    # Build environment setup
+    && apk add --no-cache --virtual .build-deps \
+    autoconf \
+    automake \
+    build-base \
+    c-ares-dev \
+    libev-dev \
+    libtool \
+    libsodium-dev \
+    linux-headers \
+    mbedtls-dev \
+    pcre-dev \
+    git \
+    # Build and install
+    && cd /tmp \
+    && git clone https://github.com/shadowsocks/shadowsocks-libev.git \
+    && cd shadowsocks-libev && git submodule update --init --recursive \
+    && ./autogen.sh \
+    && ./configure --prefix=/usr --disable-documentation \
+    && make install \
+    && apk del .build-deps \
+    # Runtime dependencies setup
+    && apk add --no-cache \
+    rng-tools \
+    $(scanelf --needed --nobanner /usr/bin/ss-* \
+    | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+    | sort -u) \
+    && rm -rf /tmp/*
+#
+# Dockerfile for shadowsocks-libev-simple-obfs
+#
+
+RUN set -ex \
+    # Build environment setup
+    && apk add --no-cache --virtual .build-deps gcc autoconf make libtool automake zlib-dev openssl asciidoc xmlto libpcre32 libev-dev g++ linux-headers git \
+    # Build and install
+    && cd /tmp \
+    && git clone https://github.com/shadowsocks/simple-obfs.git \
+    && cd simple-obfs \
+    && git submodule update --init --recursive \
+    && ./autogen.sh \
+    && ./configure --prefix=/usr --disable-documentation \
+    && make && make install \
+    && apk del .build-deps \
+    # Runtime dependencies setup
+    && apk add --no-cache \
+    $(scanelf --needed --nobanner /usr/bin/obfs-* \
+    | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+    | sort -u) \
+    && rm -rf /tmp/*
+
+
+ENTRYPOINT ["bash"]
